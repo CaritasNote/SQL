@@ -8,7 +8,7 @@ WITH DailyDonations AS (
     FROM 
         Historia_wplat.dbo.Indywidualni_Historia_Wplat
     WHERE 
-        ISNUMERIC(REPLACE(Uznanie, ',', '.')) = 1 -- Filtrujemy tylko dane numeryczne
+        ISNUMERIC(REPLACE(Uznanie, ',', '.')) = 1
     GROUP BY 
         Kod, YEAR([Data transakcji]), MONTH([Data transakcji]), [Data transakcji]
 ),
@@ -45,29 +45,19 @@ QualifiedDonors AS (
     SELECT 
         Kod,
         DonationYear,
-        DonationMonth,
-        FirstQualifyingDate
+        DonationMonth
     FROM 
         ContinuousGroups
     WHERE 
         ConsecutiveMonthsCount >= 6
 )
 SELECT 
-    QD.Kod AS Darczyńca,
-    QD.FirstQualifyingDate AS DataStaniaSięStałym,
-    MD.FullTransactionDate AS DataWpłaty,
-    MD.DonationYear AS Rok,
-    MD.DonationMonth AS Miesiąc,
-    SUM(MD.DailySum) AS KwotaDzienna
+    DonationYear AS Rok,
+    DonationMonth AS Miesiąc,
+    COUNT(DISTINCT Kod) AS LiczbaStałychDarczyńców
 FROM 
-    DailyDonations MD
-JOIN 
-    QualifiedDonors QD
-ON 
-    MD.Kod = QD.Kod
-    AND MD.DonationYear = QD.DonationYear
-    AND MD.DonationMonth = QD.DonationMonth
+    QualifiedDonors
 GROUP BY 
-    QD.Kod, QD.FirstQualifyingDate, MD.FullTransactionDate, MD.DonationYear, MD.DonationMonth
+    DonationYear, DonationMonth
 ORDER BY 
-    QD.FirstQualifyingDate, MD.DonationYear, MD.DonationMonth, MD.FullTransactionDate, QD.Kod;
+    Rok, Miesiąc;

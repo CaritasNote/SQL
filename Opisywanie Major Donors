@@ -1,0 +1,36 @@
+WITH DziennaSuma AS (
+    SELECT 
+        kod,
+        [Data transakcji] AS DataTransakcji,
+        SUM(CAST(REPLACE(Uznanie, ',', '.') AS DECIMAL(18, 2))) AS KwotaTransakcji
+    FROM 
+        Historia_wplat.dbo.Indywidualni_Historia_Wplat
+    WHERE 
+        Uznanie IS NOT NULL
+    GROUP BY 
+        kod, [Data transakcji]
+),
+RoczneSuma AS (
+    SELECT 
+        D1.kod,
+        D1.DataTransakcji,
+        (SELECT SUM(D2.KwotaTransakcji)
+         FROM DziennaSuma D2
+         WHERE 
+             D2.kod = D1.kod 
+             AND D2.DataTransakcji BETWEEN DATEADD(DAY, -364, D1.DataTransakcji) AND D1.DataTransakcji
+        ) AS RocznaSuma,
+        (SELECT MAX(D2.DataTransakcji)
+         FROM DziennaSuma D2
+         WHERE D2.kod = D1.kod
+        ) AS DataOstatniejWplaty
+    FROM 
+        DziennaSuma D1
+)
+SELECT DISTINCT 
+    kod
+FROM 
+    RoczneSuma
+WHERE 
+    RocznaSuma >= 10000 
+    AND DataOstatniejWplaty > '2018-12-31';

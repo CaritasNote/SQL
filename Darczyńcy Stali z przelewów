@@ -1,73 +1,63 @@
-WITH DailyDonations AS (
+WITH DziennaSumaWplat AS (
     SELECT 
         Kod,
-        YEAR([Data transakcji]) AS DonationYear,
-        MONTH([Data transakcji]) AS DonationMonth,
-        [Data transakcji] AS FullTransactionDate,
-        SUM(CAST(REPLACE(Uznanie, ',', '.') AS FLOAT)) AS DailySum
+        YEAR([Data transakcji]) AS RokWplaty,
+        MONTH([Data transakcji]) AS MiesiacWplaty,
+        [Data transakcji] AS PelnaDataTransakcji,
+        SUM(CAST(REPLACE(Uznanie, ',', '.') AS FLOAT)) AS DziennaSuma
     FROM 
         Historia_wplat.dbo.Indywidualni_Historia_Wplat
     WHERE 
-        ISNUMERIC(REPLACE(Uznanie, ',', '.')) = 1 -- Filtrujemy tylko dane numeryczne
+        ISNUMERIC(REPLACE(Uznanie, ',', '.')) = 1
     GROUP BY 
         Kod, YEAR([Data transakcji]), MONTH([Data transakcji]), [Data transakcji]
 ),
-NumberedMonths AS (
+NumerowaneMiesiace AS (
     SELECT 
         Kod,
-        DonationYear,
-        DonationMonth,
-        ROW_NUMBER() OVER (PARTITION BY Kod, DonationYear ORDER BY DonationMonth) AS RowNumber,
-        FullTransactionDate,
-        DailySum
+        RokWplaty,
+        MiesiacWplaty,
+        ROW_NUMBER() OVER (PARTITION BY Kod, RokWplaty ORDER BY MiesiacWplaty) AS NumerWiersza,
+        PelnaDataTransakcji,
+        DziennaSuma
     FROM 
-        DailyDonations
+        DziennaSumaWplat
 ),
-ContinuousGroups AS (
+CiagleGrupy AS (
     SELECT 
         A.Kod,
-        A.DonationYear,
-        A.DonationMonth,
-        MIN(B.FullTransactionDate) AS FirstQualifyingDate,
-        COUNT(DISTINCT B.DonationMonth) AS ConsecutiveMonthsCount
+        A.RokWplaty,
+        A.MiesiacWplaty,
+        MIN(B.PelnaDataTransakcji) AS PierwszaKwalifikowanaData,
+        COUNT(DISTINCT B.MiesiacWplaty) AS LiczbaCiaglychMiesiecy
     FROM 
-        NumberedMonths A
+        NumerowaneMiesiace A
     JOIN 
-        NumberedMonths B
+        NumerowaneMiesiace B
     ON 
         A.Kod = B.Kod
-        AND A.DonationYear = B.DonationYear
-        AND B.DonationMonth BETWEEN A.DonationMonth - 5 AND A.DonationMonth
+        AND A.RokWplaty = B.RokWplaty
+        AND B.MiesiacWplaty BETWEEN A.MiesiacWplaty - 5 AND A.MiesiacWplaty
     GROUP BY 
-        A.Kod, A.DonationYear, A.DonationMonth
+        A.Kod, A.RokWplaty, A.MiesiacWplaty
 ),
-QualifiedDonors AS (
+KwalifikowaniDarczyńcy AS (
     SELECT 
         Kod,
-        DonationYear,
-        DonationMonth,
-        FirstQualifyingDate
+        RokWplaty,
+        MiesiacWplaty
     FROM 
-        ContinuousGroups
+        CiagleGrupy
     WHERE 
-        ConsecutiveMonthsCount >= 6
+        LiczbaCiaglychMiesiecy >= 6
 )
 SELECT 
-    QD.Kod AS Darczyńca,
-    QD.FirstQualifyingDate AS DataStaniaSięStałym,
-    MD.FullTransactionDate AS DataWpłaty,
-    MD.DonationYear AS Rok,
-    MD.DonationMonth AS Miesiąc,
-    SUM(MD.DailySum) AS KwotaDzienna
+    RokWplaty AS Rok,
+    MiesiacWplaty AS Miesiac,
+    COUNT(DISTINCT Kod) AS LiczbaStalychDarczyńców
 FROM 
-    DailyDonations MD
-JOIN 
-    QualifiedDonors QD
-ON 
-    MD.Kod = QD.Kod
-    AND MD.DonationYear = QD.DonationYear
-    AND MD.DonationMonth = QD.DonationMonth
+    KwalifikowaniDarczyńcy
 GROUP BY 
-    QD.Kod, QD.FirstQualifyingDate, MD.FullTransactionDate, MD.DonationYear, MD.DonationMonth
+    RokWplaty, MiesiacWplaty
 ORDER BY 
-    QD.FirstQualifyingDate, MD.DonationYear, MD.DonationMonth, MD.FullTransactionDate, QD.Kod;
+    Rok, Miesiac;

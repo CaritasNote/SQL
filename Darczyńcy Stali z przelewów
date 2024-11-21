@@ -17,7 +17,7 @@ NumerowaneMiesiace AS (
         Kod,
         RokWplaty,
         MiesiacWplaty,
-        ROW_NUMBER() OVER (PARTITION BY Kod, RokWplaty ORDER BY MiesiacWplaty) AS NumerWiersza,
+        ROW_NUMBER() OVER (PARTITION BY Kod ORDER BY RokWplaty, MiesiacWplaty) AS NumerWiersza,
         PelnaDataTransakcji,
         DziennaSuma
     FROM 
@@ -36,8 +36,7 @@ CiagleGrupy AS (
         NumerowaneMiesiace B
     ON 
         A.Kod = B.Kod
-        AND A.RokWplaty = B.RokWplaty
-        AND B.MiesiacWplaty BETWEEN A.MiesiacWplaty - 5 AND A.MiesiacWplaty
+        AND (B.RokWplaty * 12 + B.MiesiacWplaty) BETWEEN (A.RokWplaty * 12 + A.MiesiacWplaty) - 5 AND (A.RokWplaty * 12 + A.MiesiacWplaty)
     GROUP BY 
         A.Kod, A.RokWplaty, A.MiesiacWplaty
 ),
@@ -52,12 +51,22 @@ KwalifikowaniDarczyńcy AS (
         LiczbaCiaglychMiesiecy >= 6
 )
 SELECT 
-    RokWplaty AS Rok,
-    MiesiacWplaty AS Miesiac,
-    COUNT(DISTINCT Kod) AS LiczbaStalychDarczyńców
+    D.Kod AS Darczynca,
+    D.RokWplaty AS Rok,
+    D.MiesiacWplaty AS Miesiac,
+    D.PelnaDataTransakcji AS DataTransakcji,
+    D.DziennaSuma AS SumaWplaty,
+    CASE 
+        WHEN EXISTS (
+            SELECT 1 
+            FROM KwalifikowaniDarczyńcy K
+            WHERE K.Kod = D.Kod 
+              AND K.RokWplaty = D.RokWplaty 
+              AND K.MiesiacWplaty = D.MiesiacWplaty
+        ) THEN D.PelnaDataTransakcji
+        ELSE NULL
+    END AS Staly
 FROM 
-    KwalifikowaniDarczyńcy
-GROUP BY 
-    RokWplaty, MiesiacWplaty
+    DziennaSumaWplat D
 ORDER BY 
-    Rok, Miesiac;
+    D.Kod, Rok, Miesiac, DataTransakcji;
